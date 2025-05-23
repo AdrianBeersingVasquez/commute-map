@@ -2,5 +2,6 @@
     {"name": "London", "center": [51.5074, -0.1278], "data_file": "data/london.pkl"},
     {"name": "Manchester", "center": [53.4839, -2.2446], "data_file": "data/manchester.pkl"},
     {"name": "Bristol", "center": [51.4545, -2.5879], "data_file": "data/bristol.pkl"},
-    {"name": "Birmingham", "center": [52.4862, -1.8904], "data_file": "data/birmingham.pkl"}
+    {"name": "Birmingham", "center": [52.4862, -1.8904], "data_file": "data/birmingham.pkl"},
+    {"name": "Bradford", "center": [52.4862, -1.8904], "data_file": "data/bradford.pkl"}
 ]
