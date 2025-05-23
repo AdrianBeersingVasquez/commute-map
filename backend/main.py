@@ -45,8 +45,8 @@ async def get_city_data(city_name: str):
 
     return {
         "city": city["name"],
-        "center": city["center"],
-        "data": data
+        "center": city["center"]#,
+        #"data": data
         }
 
 if __name__ == "__main__":
