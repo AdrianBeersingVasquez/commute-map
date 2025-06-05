@@ -7,7 +7,18 @@ import requests
 import random
 import time
 from dotenv import load_dotenv
+import folium
+from folium.plugins import MarkerCluster
 
+
+def get_google_api_key():
+    """Retrieve Google API key from environment variable."""
+
+    load_dotenv()
+    api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+    if not api_key:
+        raise ValueError("Google API key not found. Set the GOOGLE_MAPS_API_KEY environment variable.")
+    return api_key
 
 def fetch_sample_postcodes(district, n_samples=10):
     """Fetch random sample of postcodes for a given district prefix."""
@@ -19,7 +30,6 @@ def fetch_sample_postcodes(district, n_samples=10):
     results = r.json().get("result", [])
     all_postcodes = [r["postcode"] for r in results if r["postcode"].startswith(district)]
     return random.sample(all_postcodes, min(n_samples, len(all_postcodes)))
-
 
 def bulk_geocode(postcodes):
     """Geocode a batch of postcodes using Postcodes.io API."""
@@ -39,7 +49,6 @@ def bulk_geocode(postcodes):
         }
         for res in results
     ]
-
 
 def add_grid_points(df, grid_size=50, sample_frac=0.2):
     """Add randomly sampled grid points within the bounding box."""
@@ -61,7 +70,6 @@ def add_grid_points(df, grid_size=50, sample_frac=0.2):
     
     return pd.concat([df, sampled_grid], ignore_index=True)
 
-
 def add_center_points(df, center_point, n_points=20):
     """Add multiple copies of the center point."""
     lat, lon = center_point
@@ -71,7 +79,6 @@ def add_center_points(df, center_point, n_points=20):
         "postcode": ["center"] * n_points
     })
     return pd.concat([df, center_df], ignore_index=True)
-
 
 def add_noise(df, center_point, scale="uniform", noise_level=0.001):
     """Add noise to coordinates to avoid clustering."""
@@ -88,7 +95,6 @@ def add_noise(df, center_point, scale="uniform", noise_level=0.001):
     else:
         raise ValueError("scale must be 'uniform' or 'distance_scaled'")
     return df
-
 
 def place_markers(city_name, center, districts, per_district_sample=3):
     """Place markers for a city using postcodes, grid, and center points."""
@@ -110,7 +116,6 @@ def place_markers(city_name, center, districts, per_district_sample=3):
     df = add_noise(df, center, scale="uniform", noise_level=0.01)
     
     return df
-
 
 def calculate_travel_times(df, center, api_key, mode="transit"):
     """Calculate travel times from center to points using Google Maps API."""
@@ -140,7 +145,6 @@ def calculate_travel_times(df, center, api_key, mode="transit"):
     df = df.copy()
     df["travel_time_mins"] = travel_times
     return df.dropna(subset=["travel_time_mins"])
-
 
 def interpolate_meshgrid(df, center_lat):
     """
@@ -173,24 +177,64 @@ def interpolate_meshgrid(df, center_lat):
 
     return grid_z, lon_lin, lat_lin
 
-def generate_pkl(city_name, center, districts, output_pkl, api_key, per_district_sample=3):
-    """Generate and save preprocessed .pkl for a city."""
-    try:
-        df = place_markers(city_name, center, districts, per_district_sample)
-        df = calculate_travel_times(df, center, api_key, mode="transit")
-        grid_z, lon_lin, lat_lin = interpolate_meshgrid(df, center[0])
-        
-        output_data = {
-            "city_name": city_name,
-            "center": center,
-            "grid_z": grid_z,
-            "lon_lin": lon_lin,
-            "lat_lin": lat_lin
-        }
-        pd.to_pickle(output_data, output_pkl)
-        print(f"Generated and saved {output_pkl}")
-    except Exception as e:
-        print(f"Error generating {city_name}: {str(e)}")
+def save_pkl(city_name, center, grid_z, lon_lin, lat_lin, output_pkl):
+    """Save preprocessed .pkl for a city.
+
+    Args:
+        city_name (str): Name of the city (e.g., "Leeds").
+        center (list): [latitude, longitude] of city center.
+        grid_z (np.ndarray): 2D array of interpolated travel times.
+        lon_lin (np.ndarray): 1D array of longitude grid points.
+        lat_lin (np.ndarray): 1D array of latitude grid points.
+        output_pkl (str): Path to save the .pkl file.
+    """
+            
+    output_data = {
+        "city_name": city_name,
+        "center": center,
+        "grid_z": grid_z,
+        "lon_lin": lon_lin,
+        "lat_lin": lat_lin
+    }
+    pd.to_pickle(output_data, output_pkl)
+    print(f"Generated and saved {output_pkl}")
+
+def load_pkl(pkl_file):
+    """Load preprocessed .pkl file."""
+    if not os.path.exists(pkl_file):
+        raise FileNotFoundError(f"{pkl_file} does not exist.")
+    return pd.read_pickle(pkl_file)
+
+def plot_points(df, zoom_start=12, point_radius=4):
+    """
+    Plots all lat/lon points from a DataFrame on a folium map.
+    
+    Parameters:
+        df (pd.DataFrame): Must contain 'lat' and 'lon' columns.
+        zoom_start (int): Initial zoom level for the map.
+        point_radius (int): Radius of the point markers.
+    
+    Returns:
+        folium.Map: Interactive map with plotted points.
+    """
+    if df.empty or 'lat' not in df.columns or 'lon' not in df.columns:
+        raise ValueError("DataFrame must contain 'lat' and 'lon' columns and not be empty.")
+
+    center_point = [df['lat'].mean(), df['lon'].mean()]
+    m = folium.Map(location=center_point, zoom_start=zoom_start, control_scale=True)
+    marker_cluster = MarkerCluster().add_to(m)
+
+    for _, row in df.iterrows():
+        folium.CircleMarker(
+            location=(row['lat'], row['lon']),
+            radius=point_radius,
+            color='blue',
+            fill=True,
+            fill_color='blue',
+            fill_opacity=0.7
+        ).add_to(m) # change to 'marker_cluster' for clustering when zoomed out
+
+    return m
 
 
 cities = [
@@ -228,63 +272,19 @@ cities = [
 ]
 
 
-def get_google_api_key():
-    """Retrieve Google API key from environment variable."""
-
-    load_dotenv()
-    api_key = os.getenv("GOOGLE_MAPS_API_KEY")
-    if not api_key:
-        raise ValueError("Google API key not found. Set the GOOGLE_MAPS_API_KEY environment variable.")
-    return api_key
-
-
-import folium
-from folium.plugins import MarkerCluster
-
-def plot_points(df, zoom_start=12, point_radius=4):
-    """
-    Plots all lat/lon points from a DataFrame on a folium map.
-    
-    Parameters:
-        df (pd.DataFrame): Must contain 'lat' and 'lon' columns.
-        zoom_start (int): Initial zoom level for the map.
-        point_radius (int): Radius of the point markers.
-    
-    Returns:
-        folium.Map: Interactive map with plotted points.
-    """
-    if df.empty or 'lat' not in df.columns or 'lon' not in df.columns:
-        raise ValueError("DataFrame must contain 'lat' and 'lon' columns and not be empty.")
-
-    center_point = [df['lat'].mean(), df['lon'].mean()]
-    m = folium.Map(location=center_point, zoom_start=zoom_start, control_scale=True)
-    marker_cluster = MarkerCluster().add_to(m)
-
-    for _, row in df.iterrows():
-        folium.CircleMarker(
-            location=(row['lat'], row['lon']),
-            radius=point_radius,
-            color='blue',
-            fill=True,
-            fill_color='blue',
-            fill_opacity=0.7
-        ).add_to(m) # change to 'marker_cluster' for clustering when zoomed out
-
-    return m
-
-
 def main():
     os.makedirs("data", exist_ok=True)
     
     api_key = get_google_api_key()
 
     city = next(city for city in cities if city["name"] == "Leeds")
-    print(city)
-    print("done")
+
     df = place_markers(city["name"], city["center"], city["districts"])
     
     m = plot_points(df)
-    m.save("preprocessing/markers.html")    
+    m.save("preprocessing/markers.html")
+
+    df = calculate_travel_times(df, city["center"], api_key, mode="transit")
 
     # generate_pkl(city["name"], city["center"], city["districts"], city["output_file"], api_key, per_district_sample=3)
 if __name__ == "__main__":
