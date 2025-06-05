@@ -146,13 +146,12 @@ def calculate_travel_times(df, center, api_key, mode="transit"):
     df["travel_time_mins"] = travel_times
     return df.dropna(subset=["travel_time_mins"])
 
-def interpolate_meshgrid(df, center_lat):
+def interpolate_meshgrid(df, method='linear'):
     """
     Interpolate travel times onto a regular grid.
     
     Args:
         df: DataFrame with 'lat', 'lon', 'travel_time_mins' columns.
-        center_lat: Latitude for aspect ratio correction.
     
     Returns:
         grid_z, lon_lin, lat_lin: Interpolated grid and grid coordinates.
@@ -170,7 +169,7 @@ def interpolate_meshgrid(df, center_lat):
         points=(lons, lats),
         values=times,
         xi=(lon_grid, lat_grid),
-        method='linear' # linear or cubic TEST OUT 
+        method=method # linear or cubic TEST OUT 
     )
 
     grid_z = gaussian_filter(grid_z, sigma=3) # Smooth the grid, test what works best
@@ -236,6 +235,24 @@ def plot_points(df, zoom_start=12, point_radius=4):
 
     return m
 
+def plot_travel_heatmap(data):
+    """Plot heatmap from .pkl data on a Folium map."""
+    try:
+        if not data:
+            raise ValueError("Invalid .pkl data")
+        m = folium.Map(location=data["center"], zoom_start=12)
+        heat_data = []
+        for i, lat in enumerate(data["lat_lin"]):
+            for j, lon in enumerate(data["lon_lin"]):
+                intensity = data["grid_z"][i, j]
+                if not np.isnan(intensity):
+                    heat_data.append([lat, lon, intensity])
+        from folium.plugins import HeatMap
+        HeatMap(heat_data, radius=15).add_to(m)
+        return m
+    except Exception as e:
+        print(f"Error plotting heatmap: {str(e)}")
+        return None
 
 cities = [
     {"name": "London", 
@@ -284,8 +301,21 @@ def main():
     m = plot_points(df)
     m.save("preprocessing/markers.html")
 
+    proceed = input("Proceed with travel time calculations? (y/n): ").strip().lower()
+    if proceed != 'y':
+        print("Aborting.")
+        return
+
     df = calculate_travel_times(df, city["center"], api_key, mode="transit")
 
-    # generate_pkl(city["name"], city["center"], city["districts"], city["output_file"], api_key, per_district_sample=3)
+    grid_z, lon_lin, lat_lin = interpolate_meshgrid(df, method='linear')
+    
+    save_pkl(city["name"], city["center"], grid_z, lon_lin, lat_lin, city["output_file"])
+
+    df = load_pkl(city["output_file"])
+
+    m = plot_travel_heatmap(df)
+    m.save("preprocessing/heatmap.html")
+
 if __name__ == "__main__":
     main()
