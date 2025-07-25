@@ -80,7 +80,7 @@ function Home() {
           title={`${city} heatmap`}
         />
         <motion.div
-          className="absolute top-2 right-2 rounded-full p-1 cursor-pointer text-black"
+          className="absolute top-2 right-2 rounded-full p-1 cursor-pointer text-black bg-white bg-opacity-75"
           onClick={onToggle}
           whileHover={{ scale: 1.1 }}
         >
