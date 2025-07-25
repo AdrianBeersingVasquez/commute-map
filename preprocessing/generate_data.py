@@ -267,9 +267,9 @@ cities = [
 
     {"name": "Leeds", 
      "center": [53.8008, -1.5491],
-     "districts": ["LS1", "LS2", "LS3", "LS4", "LS5", "LS6", "LS7", "LS8", "LS9", "LS10",
-            "LS11", "LS12", "LS13", "LS14", "LS15", "LS16", "LS17", "LS18", "LS19",
-            "LS20", "LS21", "LS22", "LS23", "LS24", "LS25", "LS26", "LS27", "LS28", "LS29"],
+     "districts": ["LS1", "LS2", "LS3", "LS4", "LS5", "LS6", "LS7", "LS8", "LS9",
+                   "LS10", "LS11", "LS12", "LS13", "LS14", "LS15", "LS16", "LS17", "LS18", "LS19",
+                   "LS20", "LS21", "LS22", "LS23", "LS24", "LS25", "LS26", "LS27", "LS28", "LS29"],
     "output_file": "data/leeds.pkl"},
 
     {"name": "Bristol", 
@@ -296,7 +296,7 @@ def main():
 
     city = next(city for city in cities if city["name"] == "Leeds")
 
-    df = place_markers(city["name"], city["center"], city["districts"])
+    df = place_markers(city["name"], city["center"], city["districts"], per_district_sample=9)
     
     m = plot_points(df)
     m.save("preprocessing/markers.html")
