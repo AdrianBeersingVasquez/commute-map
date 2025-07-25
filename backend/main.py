@@ -14,8 +14,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/", StaticFiles(directory="dist", html=True), name="dist") 
+app.mount("/static", StaticFiles(directory="backend/static"), name="static")
+app.mount("/", StaticFiles(directory="backend/dist", html=True), name="dist") 
 
 @app.get("/cities")
 async def get_cities():
