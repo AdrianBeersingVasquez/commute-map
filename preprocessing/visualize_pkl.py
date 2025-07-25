@@ -6,6 +6,7 @@ import folium
 from matplotlib.colors import Normalize
 import matplotlib.cm as cm
 from PIL import Image
+from dotenv import load_dotenv
 
 from generate_heatmap import load_pkl
 
@@ -44,7 +45,7 @@ def visualize_pkl(pkl_file):
     plt.legend()
     plt.show()
 
-def add_contours(m, grid_z, lon_lin, lat_lin, contour_levels):
+def add_contours(m, grid_z, lon_lin, lat_lin, contour_levels, cmap_color):
     """
     Add contour lines to a Folium map at specified travel time levels.
     
@@ -79,7 +80,7 @@ def add_contours(m, grid_z, lon_lin, lat_lin, contour_levels):
         print(f"Contour segments per level: {[len(segs) for segs in cs.allsegs]}")
 
         # Define colors for contours
-        cmap = plt.get_cmap('viridis')  # Updated colormap access
+        cmap = plt.get_cmap(cmap_color)  # Updated colormap access
         norm = Normalize(vmin=min(valid_levels), vmax=max(valid_levels))
         contour_colors = [cmap(norm(level)) for level in valid_levels]
         
@@ -116,7 +117,7 @@ def add_contours(m, grid_z, lon_lin, lat_lin, contour_levels):
         print(f"Error adding contours: {str(e)}")
         return m
 
-def plot_travel_heatmap_static(data, contour_levels):
+def plot_travel_heatmap_static(data, contour_levels, cmap_color, show_colorbar=True):
     """Plot static heatmap from .pkl data on a Folium map using ImageOverlay with log transformation."""
     try:
         if not data:
@@ -137,7 +138,7 @@ def plot_travel_heatmap_static(data, contour_levels):
         
         # Normalize log-transformed data
         norm = Normalize(vmin=np.nanmin(grid_z_log), vmax=np.nanmax(grid_z_log))
-        cmap = plt.get_cmap('viridis')  # Updated colormap access
+        cmap = plt.get_cmap(cmap_color)  # Updated colormap access
         
         # Convert log-transformed grid_z to RGBA image
         grid_normalized = norm(grid_z_log)
@@ -157,48 +158,98 @@ def plot_travel_heatmap_static(data, contour_levels):
         debug_img_path = f"preprocessing/{data['city_name'].lower()}_heatmap_raw.png"
         img.save(debug_img_path)
         print(f"Saved raw heatmap image to {debug_img_path}")
-        
+    
+        # Calculates aesthetic center (not actual centre)
+        min_idx = np.unravel_index(np.argmin(grid_z), grid_z.shape)
+        y_min, x_min = min_idx
+        y_max = len(lat_lin) - 1 - y_min  # Reverse the y-index
+        center_lat = lat_lin[y_max] 
+        center_lon = lon_lin[x_min]
+
+        print(f"Center coordinates: ({center_lat}, {center_lon})")
         # Create Folium map
-        m = folium.Map(location=center, zoom_start=12)
+        m = folium.Map(location=[center_lat, center_lon],
+                       zoom_start=11,
+                       zoom_control=False,
+                       max_bounds=True,
+                       min_lat=lat_lin.min(),
+                       min_lon=lon_lin.min(),
+                       max_lat=lat_lin.max(),
+                       max_lon=lon_lin.max())
+        m.options['attributionControl'] = False
+        m.options['layerControl'] = False
+
+        jawg_api_key = get_jawg_api_key()
+        folium.TileLayer(
+            tiles=f'https://a.tile.jawg.io/jawg-dark/{{z}}/{{x}}/{{y}}.png?access-token={jawg_api_key}',
+            attr='&copy; <a href="https://www.jawg.io/">Jawg Maps</a> contributors',
+            control=False
+        ).add_to(m)
         
         # Add ImageOverlay
         bounds = [[lat_lin.min(), lon_lin.min()], [lat_lin.max(), lon_lin.max()]]
         folium.raster_layers.ImageOverlay(
             image=np.array(img),
             bounds=bounds,
-            opacity=0.4,
+            opacity=0.5,
             interactive=False,
             cross_origin=False,
         ).add_to(m)
         
         # Add contours
         if contour_levels:
-            m = add_contours(m, grid_z, lon_lin, lat_lin, contour_levels)
+            m = add_contours(m, grid_z, lon_lin, lat_lin, contour_levels, cmap_color)
 
-        # Add layer control
-        folium.LayerControl().add_to(m)
-        
-        
-        # Add colorbar with original travel time scale
-        min_time = np.nanmin(grid_z)
-        max_time = np.nanmax(grid_z)
-        colorbar_html = f"""
-        <div style="position: fixed; bottom: 50px; right: 50px; width: 30px; height: 200px;
-                    border: 2px solid black; z-index: 9999; background: linear-gradient(to top, #0000ff, #00ff00, #ffff00, #ff0000);">
-            <div style="position: absolute; bottom: -20px; right: -40px; font-size: 12px;">{min_time:.0f} min</div>
-            <div style="position: absolute; top: 100px; right: -40px; font-size: 12px;">
-                {np.expm1(lerp(np.nanmin(grid_z_log), np.nanmax(grid_z_log), 0.33)):.0f} min</div>
-            <div style="position: absolute; top: 50px; right: -40px; font-size: 12px;">
-                {np.expm1(lerp(np.nanmin(grid_z_log), np.nanmax(grid_z_log), 0.67)):.0f} min</div>
-            <div style="position: absolute; top: -20px; right: -40px; font-size: 12px;">{max_time:.0f} min</div>
-        </div>
-        """
-        m.get_root().html.add_child(folium.Element(colorbar_html))
-        
+        # Add colorbar
+        if show_colorbar:
+            m = add_colorbar(m, grid_z, grid_z_log, cmap_color)
+
         return m
     except Exception as e:
         print(f"Error plotting heatmap: {str(e)}")
         return None
+    
+def add_colorbar(m, grid_z, grid_z_log, cmap_color):
+    print("Adding colorbar to map...")
+    # Add colorbar with original travel time scale
+
+    colormap = plt.get_cmap(cmap_color)
+    num_colors = 100
+    colors = [colormap(i / num_colors) for i in range(num_colors)]
+
+    gradient = 'linear-gradient(to top, ' + ', '.join(
+    [f'rgba({int(c[0]*255)}, {int(c[1]*255)}, {int(c[2]*255)}, {c[3]})' for c in colors]) + ')'
+
+    min_time = np.nanmin(grid_z)
+    max_time = np.nanmax(grid_z)
+    colorbar_html = f"""
+    <div style="position: fixed; bottom: 20px; left: 20px; width: 15px; height: 100px;
+                border: 2px solid black; z-index: 9999; background: {gradient};">
+        <div style="position: absolute; bottom: -20px; right: -40px; font-size: 12px; color: white;">{min_time:.0f} min</div>
+        <div style="position: absolute; top: 100px; right: -40px; font-size: 12px; color: white;">
+            {np.expm1(lerp(np.nanmin(grid_z_log), np.nanmax(grid_z_log), 0.33)):.0f} min</div>
+        <div style="position: absolute; top: 50px; right: -40px; font-size: 12px; color: white;">
+            {np.expm1(lerp(np.nanmin(grid_z_log), np.nanmax(grid_z_log), 0.67)):.0f} min</div>
+        <div style="position: absolute; top: -20px; right: -40px; font-size: 12px; color: white;">{max_time:.0f} min</div>
+    </div>
+    """
+    
+    m.get_root().html.add_child(folium.Element(colorbar_html))
+
+    return m
+
+
+def get_jawg_api_key():
+    load_dotenv()
+
+    jawg_api_key = os.getenv("JAWG_API_KEY")
+
+    if jawg_api_key:
+        print("JAWG API Key loaded successfully.")
+    else:
+        print("JAWG API Key is not set.")
+
+    return jawg_api_key
 
 def main(city_name, zone):
     pkl_file = f"data/{city_name.lower()}_heatmap{zone}.pkl"
@@ -207,7 +258,7 @@ def main(city_name, zone):
     
     # visualize_pkl(pkl_file)
 
-    m = plot_travel_heatmap_static(data, contour_levels=[0.5, 15, 30, 60, 120])
+    m = plot_travel_heatmap_static(data, contour_levels=[10, 20, 30, 45, 60, 120], cmap_color='magma_r', show_colorbar=False)
 
     if m:
         heatmap_file = f"preprocessing/visualize_heatmap.html"
@@ -217,4 +268,5 @@ def main(city_name, zone):
     print("Grid_z histogram:", np.histogram(data['grid_z'], bins=10)[0])
 
 if __name__ == "__main__":
-    main('Leeds', '')
+    main('Leeds', 'SOUTH')
+# done mw (actually beeston), train, NE (actually stourton), SOUTH (actually burley)
