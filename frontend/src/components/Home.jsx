@@ -41,7 +41,7 @@ function Home() {
 
 
   useEffect(() => {
-    fetch('http://localhost:8000/cities')
+    fetch('/cities')
       .then((res) => {
         if (!res.ok) {
           throw new Error(`HTTP error! status: ${res.status}`);
