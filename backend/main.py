@@ -15,7 +15,7 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory="backend/static"), name="static")
-app.mount("/", StaticFiles(directory="backend/dist", html=True), name="dist") 
+app.mount("/", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "dist"), html=True), name="dist")
 
 @app.get("/cities")
 async def get_cities():
