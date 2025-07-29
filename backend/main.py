@@ -19,9 +19,7 @@ app.mount("/", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "di
 
 @app.get("/cities")
 async def get_cities():
-    #base_cities = ["leeds", "london"]
     variations = ["leeds1", "leeds2", "leeds3", "leeds4", "london1", "london2", "london3", "london4", "london5"]
-    #return {"cities": base_cities + variations}
     return {"cities": variations}
 
 @app.get("/static/preprocessing/{filename}")
