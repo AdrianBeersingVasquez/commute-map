@@ -1,8 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 import os
 
 app = FastAPI()
@@ -15,9 +14,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/assets", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "dist/assets")), name="assets")
 app.mount("/static", StaticFiles(directory="backend/static"), name="static")
-app.mount("/", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "dist"), html=True), name="frontend")
+app.mount("/assets", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "dist/assets")), name="assets")
 
 print("Registering /cities route")  # Debug print
 @app.get("/cities")
@@ -29,9 +27,6 @@ async def get_cities():
 async def serve_heatmap(filename: str):
     base_dir = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(base_dir, "static", "preprocessing", f"{filename}")
-
-    print(f"Looking for file at: {file_path}")  # Debug log
-    print(f"Files in directory: {os.listdir(os.path.join(base_dir, 'static', 'preprocessing'))}")  # List files
     if os.path.exists(file_path):
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
