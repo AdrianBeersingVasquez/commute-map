@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import os
 
 app = FastAPI()
@@ -14,8 +15,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.mount("/assets", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "dist/assets")), name="assets")
 app.mount("/static", StaticFiles(directory="backend/static"), name="static")
-app.mount("/app", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "dist"), html=True), name="dist")
+app.mount("/", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "dist"), html=True), name="frontend")
 
 print("Registering /cities route")  # Debug print
 @app.get("/cities")
@@ -35,3 +37,12 @@ async def serve_heatmap(filename: str):
             content = f.read()
             return HTMLResponse(content=content, media_type="text/html")
     return {"error": "File not found"}, 404
+
+
+@app.get("/")
+async def root():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "dist", "index.html"))
+
+@app.get("/{full_path:path}")
+async def serve_react_app(full_path: str):
+    return FileResponse(os.path.join(os.path.dirname(__file__), "dist", "index.html"))
