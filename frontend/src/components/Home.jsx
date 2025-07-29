@@ -41,16 +41,16 @@ function Home() {
 
 
   useEffect(() => {
-    fetch('/cities')
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-        return res.json();
-      })
-      .then((data) => setCities(data.cities || []))
-      .catch((err) => console.error('Error fetching cities:', err.message));
-  }, []);
+  fetch('/cities')
+    .then((res) => {
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      return res.json();
+    })
+    .then((data) => setCities(data.cities || []))
+    .catch((err) => console.error('Error fetching cities:', err.message));
+}, []);
 
   const handleSelect = (city) => {
     if (selectedCity === city) {
@@ -64,7 +64,19 @@ function Home() {
     }
   };
 
+  const cityToFileMap = {
+    leeds1: 'leed1_heatmap',
+    leeds2: 'leed2_heatmap',
+    leeds3: 'leed3_heatmap',
+    london1: 'london1_heatmap',
+    london2: 'london2_heatmap',
+    london3: 'london3_heatmap',
+    london4: 'london4_heatmap',
+    london5: 'london5_heatmap',
+  };
+
   const MapView = ({ city, onToggle }) => {
+    const fileName = cityToFileMap[city] || `${city}_heatmap`;
     return (
       <motion.div
         className="w-full h-full relative"
@@ -72,10 +84,10 @@ function Home() {
         animate={{ scale: 1, width: '100%', height: '100%' }}
         exit={{ scale: 0.25, width: '200px', height: '200px' }}
         style={{ transformOrigin: 'center' }}
-        transition={{ duration: 0.9 }} // Ensure transition applies to exit
+        transition={{ duration: 0.9 }}
       >
         <iframe
-          src={`/static/preprocessing/${city}_heatmap.html`}
+          src={`/static/preprocessing/${fileName}.html`}
           className="w-full h-full border-none"
           title={`${city} heatmap`}
         />
