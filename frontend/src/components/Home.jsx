@@ -65,9 +65,9 @@ function Home() {
   };
 
   const cityToFileMap = {
-    leeds1: 'leed1_heatmap',
-    leeds2: 'leed2_heatmap',
-    leeds3: 'leed3_heatmap',
+    leeds1: 'leeds1_heatmap',
+    leeds2: 'leeds2_heatmap',
+    leeds3: 'leeds3_heatmap',
     london1: 'london1_heatmap',
     london2: 'london2_heatmap',
     london3: 'london3_heatmap',
